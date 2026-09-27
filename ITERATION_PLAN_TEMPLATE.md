@@ -1,13 +1,16 @@
 # Iteration Plan
 
-- Starting value / starting condition:
-- Quantity being adjusted:
-- Target quantity:
-- Error definition:
-- Tolerance:
-- Update rule:
-- Maximum iterations:
-- Condition for CONVERGED:
-- Condition for NOT CONVERGED:
-- Conditions that are INVALID INPUT:
-- History fields to store:
+- **Starting value / starting condition:** Start with a diameter guess of **3 ft** (`B7`, first recorded guess `E5`). Keep the tank height at **5 ft** (`B6`). Evaluate the starting guess as iteration 1 and count every subsequent volume evaluation against the iteration limit. The target volume is **100 ft³** (`B5`).
+- **Quantity being adjusted:** The tank's proposed **internal diameter**, in **ft**. The example guesses are entered manually in `E5:E11`; the workbook does not contain a formula for choosing the next diameter.
+- **Target quantity:** Calculated cylindrical volume, **100 ft³**. For any diameter `d` in ft and fixed height `h` in ft, compute `V(d) = π × d² × h / 4`, in ft³. This matches `F5 = PI()*(E5^2)/4*$B$6`, copied through `F11`.
+- **Error definition:** `absolute_error = abs(V(d) - target_volume)`, in **ft³**. This matches `G5 = ABS(F5-$B$5)`, copied through `G11`. Retain the unrounded value for decisions and round only for display.
+- **Tolerance:** **0.05 ft³** (`B8`). This is an **absolute volume error**, not a diameter tolerance or percentage. A calculated volume from 99.95 to 100.05 ft³, inclusive, meets the target.
+- **Update rule:** Use a **bracketed bisection-style search** for the Python tool. This is a software design choice because the workbook supplies manual guesses rather than an update formula. For positive height, volume increases with positive diameter:
+  1. Evaluate the starting diameter. If its volume is below target, set it as the lower bound and evaluate doubled positive guesses (`2 × current_diameter`) until one reaches or exceeds the target; this establishes an upper bound. If the starting volume is above target, use the starting diameter as the upper bound and **0 ft only as a mathematical lower bound** (zero is never evaluated as a proposed tank diameter). Check for convergence after every evaluated guess.
+  2. Once bounds exist, choose `next_diameter = (lower_bound + upper_bound) / 2`. If its volume is below target, replace the lower bound; if above target, replace the upper bound. Recheck the absolute error after each evaluation.
+  3. Stop if the tolerance is met or the iteration budget runs out, including during upper-bound expansion. If doubling or a midpoint can no longer produce a distinct finite diameter, stop without claiming convergence.
+- **Maximum iterations:** **50** (`B9`). The spreadsheet displays this input but does not enforce it; the Python solver must count all volume evaluations and stop at 50. With only one permitted iteration, the starting guess at 3 ft does not converge and must yield `NOT CONVERGED`.
+- **Condition for CONVERGED:** An evaluated diameter is positive and finite, and `abs(calculated_volume - target_volume) <= tolerance` before or on the allowed final iteration. Report that diameter, its volume, absolute error, iteration count, and history. This matches the worksheet's `H5 = IF(G5<=$B$8,"YES","NO")`, copied through `H11`.
+- **Condition for NOT CONVERGED:** Inputs passed validation, but the solver did not meet the tolerance within the maximum number of evaluations. Also report this status if no further distinct finite guess can be generated. Preserve the attempted history and last error; do not label the last diameter a valid engineering solution.
+- **Conditions that are INVALID INPUT:** Reject a missing, nonnumeric, nonfinite, zero, or negative target volume, tank height, or starting diameter; a missing, nonnumeric, nonfinite, zero, or negative tolerance; and a maximum-iteration value that is missing, Boolean, noninteger, or below 1. Reject an input combination if the one-pass volume calculation is nonfinite. Identify the offending input in the error message, before starting iteration. These are proposed software safety rules; the worksheet does not enforce them or specify upper operating limits.
+- **History fields to store:** Iteration number; diameter guess (**ft**); calculated volume (**ft³**); target volume (**ft³**); absolute error (**ft³**); and lower/upper diameter bounds when available. The first four calculated values correspond to `D5:G11`. Make the history available for both converged and nonconverged runs. Invalid input produces no iteration history.
